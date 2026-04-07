@@ -1,0 +1,608 @@
+Use UI
+Use cJsonObject.pkg
+
+Class cYamlObject is a cJsonObject
+
+    Procedure Construct_Object
+        Forward Send Construct_Object
+    End_Procedure
+
+    Procedure End_Construct_Object
+        Forward Send End_Construct_Object
+    End_Procedure
+
+    // Return the number of leading spaces in sLine
+    { Visibility=Private }
+    Function _IndentOf String sLine Returns Integer
+        Integer i iLen
+        Move (Length(sLine)) to iLen
+        For i from 1 to iLen
+            If (Mid(sLine, 1, i) <> " ") Begin
+                Function_Return (i - 1)
+            End
+        Loop
+        Function_Return iLen
+    End_Function
+
+    // Return True if sVal is surrounded by matching single or double quotes
+    { Visibility=Private }
+    Function _IsQuoted String sVal Returns Boolean
+        Integer iLen
+        Move (Length(sVal)) to iLen
+        If (iLen >= 2) Begin
+            If (Left(sVal, 1) = '"'  and Right(sVal, 1) = '"')  Function_Return True
+            If (Left(sVal, 1) = "'" and Right(sVal, 1) = "'") Function_Return True
+        End
+        Function_Return False
+    End_Function
+
+    // Strip surrounding quotes from sVal
+    { Visibility=Private }
+    Function _Unquote String sVal Returns String
+        Integer iLen
+        Move (Length(sVal)) to iLen
+        If (iLen >= 2) Begin
+            If ((Left(sVal, 1) = '"'  and Right(sVal, 1) = '"' ) or ;
+                (Left(sVal, 1) = "'" and Right(sVal, 1) = "'")) Begin
+                Function_Return (Mid(sVal, iLen - 2, 2))
+            End
+        End
+        Function_Return sVal
+    End_Function
+
+    // Return True if sVal is a valid decimal number (integer or float),
+    // with an optional leading '-' or '+'.
+    { Visibility=Private }
+    Function _IsNum String sVal Returns Boolean
+        Integer i iLen iDots iDigits
+        String sCh
+        Move (Length(sVal)) to iLen
+        If (iLen = 0) ;
+            Function_Return False
+        Move 0 to iDots
+        Move 0 to iDigits
+        For i from 1 to iLen
+            Move (Mid(sVal, 1, i)) to sCh
+            If (i = 1 and (sCh = "-" or sCh = "+")) Begin
+                // optional sign — ok, but must not be the only character
+                If (iLen = 1) ;
+                    Function_Return False
+            End
+            Else If (sCh = ".") Begin
+                Increment iDots
+                If (iDots > 1) ;
+                    Function_Return False
+            End
+            Else If (sCh >= "0" and sCh <= "9") Begin
+                Increment iDigits
+            End
+            Else Begin
+                Function_Return False
+            End
+        Loop
+        Function_Return (iDigits > 0)
+    End_Function
+
+    // Infer the JSON type of a YAML scalar string
+    { Visibility=Private }
+    Function _ScalarType String sVal Returns Integer
+        If (sVal = "" or sVal = "~" or sVal = "null" or sVal = "Null" or sVal = "NULL") Begin
+            Function_Return jsonTypeNull
+        End
+        If (sVal = "true"  or sVal = "True"  or sVal = "TRUE"  or ;
+            sVal = "false" or sVal = "False" or sVal = "FALSE") Begin
+            Function_Return jsonTypeBoolean
+        End
+        If (_IsNum(Self, sVal)) Begin
+            If (Pos(".", sVal) > 0) ;
+                Function_Return jsonTypeDouble
+            Function_Return jsonTypeInteger
+        End
+        Function_Return jsonTypeString
+    End_Function
+
+    // Find position (1-based) of the first ': ' or trailing ':' in sLine
+    // that is not inside quotes. Returns 0 if not found.
+    { Visibility=Private }
+    Function _FindKeyColon String sLine Returns Integer
+        Integer i iLen
+        Boolean bInDq bInSq
+        String sCh
+        Move (Length(sLine)) to iLen
+        Move False to bInDq
+        Move False to bInSq
+        For i from 1 to iLen
+            Move (Mid(sLine, 1, i)) to sCh
+            If (sCh = '"' and bInSq = False) Begin
+                If (bInDq) Move False to bInDq
+                Else Move True to bInDq
+            End
+            Else If (sCh = "'" and bInDq = False) Begin
+                If (bInSq) Move False to bInSq
+                Else Move True to bInSq
+            End
+            Else If (sCh = ":" and bInDq = False and bInSq = False) Begin
+                If (i = iLen) ;
+                    Function_Return i  // trailing ':'
+                If (Mid(sLine, 1, i + 1) = " ") ;
+                    Function_Return i  // ': '
+            End
+        Loop
+        Function_Return 0
+    End_Function
+
+    // Remove a trailing inline YAML comment (space + #) from a scalar value
+    { Visibility=Private }
+    Function _StripComment String sVal Returns String
+        Integer i iLen
+        Boolean bInDq bInSq
+        String sCh
+        Move (Length(sVal)) to iLen
+        Move False to bInDq
+        Move False to bInSq
+        For i from 1 to iLen
+            Move (Mid(sVal, 1, i)) to sCh
+            If (sCh = '"' and bInSq = False) Begin
+                If (bInDq) Move False to bInDq
+                Else Move True to bInDq
+            End
+            Else If (sCh = "'" and bInDq = False) Begin
+                If (bInSq) Move False to bInSq
+                Else Move True to bInSq
+            End
+            Else If (sCh = "#" and bInDq = False and bInSq = False) Begin
+                If (i > 1 and Mid(sVal, 1, i - 1) = " ") Begin
+                    Function_Return (Trim(Left(sVal, i - 2)))
+                End
+            End
+        Loop
+        Function_Return sVal
+    End_Function
+
+    // Return the index of the first non-blank, non-comment line at or after iFrom
+    { Visibility=Private }
+    Function _NextContentLine String[] asLines Integer iFrom Returns Integer
+        Integer iLine iCount
+        String sTrimmed
+        Move iFrom to iLine
+        Move (SizeOfArray(asLines)) to iCount
+        While (iLine < iCount)
+            Move (Trim(asLines[iLine])) to sTrimmed
+            If (sTrimmed <> "" and Left(sTrimmed, 1) <> "#") Begin
+                Function_Return iLine
+            End
+            Increment iLine
+        Loop
+        Function_Return iCount
+    End_Function
+
+    // Add or set a scalar value on hoTarget.
+    // bMember=True  -> SetMemberValue with key sKey
+    // bMember=False -> AddMemberValue (array append)
+    { Visibility=Private }
+    Procedure _AddScalar Handle hoTarget Boolean bMember String sKey String sVal
+        Integer iType
+        If (_IsQuoted(Self, sVal)) Begin
+            Get _Unquote sVal to sVal
+            Move jsonTypeString to iType
+        End
+        Else Begin
+            Get _ScalarType sVal to iType
+        End
+        If (bMember) ;
+            Send SetMemberValue of hoTarget sKey iType sVal
+        Else ;
+            Send AddMemberValue of hoTarget iType sVal
+    End_Procedure
+
+    // Parse lines from iStart into hoTarget (already initialized as object or array).
+    // Only consumes lines with indentation >= iIndent.
+    // Returns the index of the first unconsumed line.
+    { Visibility=Private }
+    Function _ParseBlock Handle hoTarget Integer iIndent String[] asLines Integer iStart Returns Integer
+        Integer iLine iCount iThisIndent iSubIndent iColon iScanLine
+        String sLine sTrimmed sKey sValue sRest
+        Handle hoChild hoGrand
+
+        Move iStart to iLine
+        Move (SizeOfArray(asLines)) to iCount
+
+        While (iLine < iCount)
+            Move asLines[iLine] to sLine
+            Move (Trim(sLine)) to sTrimmed
+
+            // Skip blank lines and full-line comments
+            If (sTrimmed = "" or Left(sTrimmed, 1) = "#") Begin
+                Increment iLine
+            End
+            Else Begin
+                Get _IndentOf sLine to iThisIndent
+
+                // Line is less indented than our block -> stop and give it back
+                If (iThisIndent < iIndent) Begin
+                    Function_Return iLine
+                End
+
+                Increment iLine  // consume this line
+
+                // -- Array item  ----------------------------------------------
+                If (Left(sTrimmed, 2) = "- " or sTrimmed = "-") Begin
+
+                    // Extract content after "- "
+                    If (Length(sTrimmed) > 2) ;
+                        Move (Trim(Mid(sTrimmed, Length(sTrimmed) - 2, 3))) to sRest
+                    Else ;
+                        Move "" to sRest
+
+                    If (sRest = "") Begin
+                        // Item body starts on the next lines
+                        Get _NextContentLine asLines iLine to iScanLine
+                        If (iScanLine < iCount) Begin
+                            Get _IndentOf asLines[iScanLine] to iSubIndent
+                            Get Create (RefClass(cJsonObject)) to hoChild
+                            If (Left(Trim(asLines[iScanLine]), 2) = "- " or Trim(asLines[iScanLine]) = "-") Begin
+                                Send InitializeJsonType of hoChild jsonTypeArray
+                            End
+                            Else Begin
+                                Send InitializeJsonType of hoChild jsonTypeObject
+                            End
+                            Get _ParseBlock hoChild iSubIndent asLines iLine to iLine
+                            Send AddMember of hoTarget hoChild
+                            Send Destroy of hoChild
+                        End
+                        Else Begin
+                            Send AddMemberValue of hoTarget jsonTypeNull ""
+                        End
+                    End
+                    Else Begin
+                        Get _FindKeyColon sRest to iColon
+                        If (iColon > 0) Begin
+                            // "- key: value ..." -- array item is a mapping
+                            Get Create (RefClass(cJsonObject)) to hoChild
+                            Send InitializeJsonType of hoChild jsonTypeObject
+
+                            Move (Trim(Left(sRest, iColon - 1))) to sKey
+                            If (iColon < Length(sRest)) ;
+                                Move (Trim(Mid(sRest, Length(sRest) - iColon, iColon + 1))) to sValue
+                            Else ;
+                                Move "" to sValue
+
+                            If (sValue = "") Begin
+                                // Value is a sub-block
+                                Get _NextContentLine asLines iLine to iScanLine
+                                If (iScanLine < iCount) Begin
+                                    Get _IndentOf asLines[iScanLine] to iSubIndent
+                                    If (iSubIndent > iThisIndent) Begin
+                                        Get Create (RefClass(cJsonObject)) to hoGrand
+                                        If (Left(Trim(asLines[iScanLine]), 2) = "- " or Trim(asLines[iScanLine]) = "-") Begin
+                                            Send InitializeJsonType of hoGrand jsonTypeArray
+                                        End
+                                        Else Begin
+                                            Send InitializeJsonType of hoGrand jsonTypeObject
+                                        End
+                                        Get _ParseBlock hoGrand iSubIndent asLines iLine to iLine
+                                        Send SetMember of hoChild sKey hoGrand
+                                        Send Destroy of hoGrand
+                                    End
+                                    Else Begin
+                                        Send SetMemberValue of hoChild sKey jsonTypeNull ""
+                                    End
+                                End
+                                Else Begin
+                                    Send SetMemberValue of hoChild sKey jsonTypeNull ""
+                                End
+                            End
+                            Else Begin
+                                Get _StripComment sValue to sValue
+                                Send _AddScalar hoChild True sKey sValue
+                            End
+
+                            // Remaining k-v pairs in this mapping item live at iThisIndent+2
+                            Get _ParseBlock hoChild (iThisIndent + 2) asLines iLine to iLine
+                            Send AddMember of hoTarget hoChild
+                            Send Destroy of hoChild
+                        End
+                        Else Begin
+                            // Scalar array item
+                            Get _StripComment sRest to sRest
+                            Send _AddScalar hoTarget False "" sRest
+                        End
+                    End
+
+                End  // array item
+
+                // -- Key-value pair  ------------------------------------------
+                Else Begin
+                    Get _FindKeyColon sTrimmed to iColon
+                    If (iColon > 0) Begin
+                        Move (Trim(Left(sTrimmed, iColon - 1))) to sKey
+                        If (iColon < Length(sTrimmed)) ;
+                            Move (Trim(Mid(sTrimmed, Length(sTrimmed) - iColon, iColon + 1))) to sValue
+                        Else ;
+                            Move "" to sValue
+
+                        If (sValue = "") Begin
+                            // Block value on following lines
+                            Get _NextContentLine asLines iLine to iScanLine
+                            If (iScanLine < iCount) Begin
+                                Get _IndentOf asLines[iScanLine] to iSubIndent
+                                If (iSubIndent > iThisIndent) Begin
+                                    Get Create (RefClass(cJsonObject)) to hoChild
+                                    If (Left(Trim(asLines[iScanLine]), 2) = "- " or Trim(asLines[iScanLine]) = "-") Begin
+                                        Send InitializeJsonType of hoChild jsonTypeArray
+                                    End
+                                    Else Begin
+                                        Send InitializeJsonType of hoChild jsonTypeObject
+                                    End
+                                    Get _ParseBlock hoChild iSubIndent asLines iLine to iLine
+                                    Send SetMember of hoTarget sKey hoChild
+                                    Send Destroy of hoChild
+                                End
+                                Else Begin
+                                    Send SetMemberValue of hoTarget sKey jsonTypeNull ""
+                                End
+                            End
+                            Else Begin
+                                Send SetMemberValue of hoTarget sKey jsonTypeNull ""
+                            End
+                        End
+                        Else Begin
+                            Get _StripComment sValue to sValue
+                            Send _AddScalar hoTarget True sKey sValue
+                        End
+                    End
+                    // else: malformed line -- skip it
+                End  // key-value
+
+            End  // non-blank line
+        Loop
+
+        Function_Return iLine
+    End_Function
+
+    // Parse YAML from an array of strings (one line per element).
+    // Populates Self (a cJsonObject) with the parsed structure.
+    // Returns True on success.
+    Function ParseYamlLines String[] asLines Returns Boolean
+        Integer iFirstLine iFirstIndent iCount iOrigDecSep
+        String sTrimmed
+
+        Get_Attribute DF_DECIMAL_SEPARATOR to iOrigDecSep
+        Set_Attribute DF_DECIMAL_SEPARATOR to (Ascii("."))
+
+        Move (SizeOfArray(asLines)) to iCount
+        Get _NextContentLine asLines 0 to iFirstLine
+
+        If (iFirstLine >= iCount) Begin
+            // Empty document
+            Send InitializeJsonType jsonTypeObject
+            Function_Return True
+        End
+
+        Move (Trim(asLines[iFirstLine])) to sTrimmed
+        Get _IndentOf asLines[iFirstLine] to iFirstIndent
+
+        If (Left(sTrimmed, 2) = "- " or sTrimmed = "-") Begin
+            Send InitializeJsonType jsonTypeArray
+        End
+        Else Begin
+            Send InitializeJsonType jsonTypeObject
+        End
+
+        Get _ParseBlock Self iFirstIndent asLines 0 to iFirstLine
+
+        Set_Attribute DF_DECIMAL_SEPARATOR to iOrigDecSep
+        Function_Return True
+    End_Function
+
+    // Parse YAML from a single string containing newline-separated lines.
+    // Splits on LF (and strips trailing CR), then delegates to ParseYamlLines.
+    // Returns True on success.
+    Function ParseYaml String sYaml Returns Boolean
+        String[] asLines
+        String sLine sCr
+        Integer iLen iLineStart iLfPos iLineLen iLine
+        Boolean bResult
+
+        Move (Character(13)) to sCr
+        Move (Length(sYaml)) to iLen
+        Move 1 to iLineStart
+        Move 0 to iLine
+
+        While (iLineStart <= iLen)
+            Move (Pos(Character(10), sYaml, iLineStart)) to iLfPos
+
+            If (iLfPos > 0) ;
+                Move (iLfPos - iLineStart) to iLineLen
+            Else ;
+                Move (iLen - iLineStart + 1) to iLineLen
+
+            Move (Mid(sYaml, iLineLen, iLineStart)) to sLine
+
+            // Strip trailing CR for CRLF line endings
+            If (Right(sLine, 1) = sCr) ;
+                Move (Left(sLine, iLineLen - 1)) to sLine
+
+            Move sLine to asLines[iLine]
+            Increment iLine
+
+            If (iLfPos > 0) ;
+                Move (iLfPos + 1) to iLineStart
+            Else ;
+                Move (iLen + 1) to iLineStart
+        Loop
+
+        Get ParseYamlLines asLines to bResult
+        Function_Return bResult
+    End_Function
+
+    // Return True if sVal needs double-quoting in YAML output:
+    // - empty string
+    // - would be misread as a bool, null, or number
+    // - contains leading/trailing whitespace
+    // - contains a colon followed by a space (would parse as mapping)
+    // - starts with a YAML indicator character
+    { Visibility=Private }
+    Function _NeedsQuoting String sVal Returns Boolean
+        Integer iType
+        String sIndicators sCh
+        If (sVal = "") ;
+            Function_Return True
+        If (sVal <> Trim(sVal)) ;
+            Function_Return True
+        // Would be mis-typed by _ScalarType
+        Get _ScalarType sVal to iType
+        If (iType <> jsonTypeString) ;
+            Function_Return True
+        // Contains ': ' sequence
+        If (Pos(": ", sVal) > 0) ;
+            Function_Return True
+        // Starts with a YAML flow/block indicator
+        Move "{[|>&!*&%@`" to sIndicators
+        Move (Left(sVal, 1)) to sCh
+        If (Pos(sCh, sIndicators) > 0) ;
+            Function_Return True
+        Function_Return False
+    End_Function
+
+    // Return a string of iCount spaces for indentation
+    { Visibility=Private }
+    Function _Indent Integer iCount Returns String
+        String sPad
+        Move "" to sPad
+        While (iCount > 0)
+            Move (sPad + " ") to sPad
+            Decrement iCount
+        Loop
+        Function_Return sPad
+    End_Function
+
+    // Serialize hoNode into YAML lines, appending to asLines.
+    // iIndent is the current indentation level.
+    // bArrayItem: when True the first line gets the "- " prefix instead of indentation.
+    // sKey: when non-empty, prefix the first line with "key: "
+    { Visibility=Private }
+    Procedure _SerializeNode Handle hoNode Integer iIndent Boolean bArrayItem String sKey String[] ByRef asLines
+        Integer iType iCount i
+        String sVal sLine sPad sItemPad
+        Handle hoChild
+
+        Get _Indent iIndent to sPad
+        Get JsonType of hoNode to iType
+
+        If (iType = jsonTypeObject) Begin
+            // Object header line
+            If (bArrayItem) Begin
+                If (sKey <> "") ;
+                    Move (sPad + "- " + sKey + ":") to sLine
+                Else ;
+                    Move (sPad + "-") to sLine
+            End
+            Else Begin
+                If (sKey <> "") ;
+                    Move (sPad + sKey + ":") to sLine
+                Else ;
+                    Move "" to sLine
+            End
+            If (sLine <> "") Begin
+                Move sLine to asLines[SizeOfArray(asLines)]
+            End
+
+            // Members indent: only add 2 when a header line was emitted;
+            // the root object has no header, so members stay at iIndent.
+            Get MemberCount of hoNode to iCount
+            For i from 0 to (iCount - 1)
+                Get MemberByIndex of hoNode i to hoChild
+                If (sLine <> "") ;
+                    Send _SerializeNode hoChild (iIndent + 2) False (MemberNameByIndex(hoNode, i)) (&asLines)
+                Else ;
+                    Send _SerializeNode hoChild iIndent False (MemberNameByIndex(hoNode, i)) (&asLines)
+            Loop
+        End
+
+        Else If (iType = jsonTypeArray) Begin
+            // Array header line
+            If (bArrayItem) Begin
+                If (sKey <> "") ;
+                    Move (sPad + "- " + sKey + ":") to sLine
+                Else ;
+                    Move (sPad + "-") to sLine
+                Move sLine to asLines[SizeOfArray(asLines)]
+            End
+            Else Begin
+                If (sKey <> "") Begin
+                    Move (sPad + sKey + ":") to sLine
+                    Move sLine to asLines[SizeOfArray(asLines)]
+                End
+            End
+
+            // Items indent: add 2 when a header line was emitted so that the
+            // parser's iSubIndent > iThisIndent check passes correctly.
+            Get MemberCount of hoNode to iCount
+            For i from 0 to (iCount - 1)
+                Get MemberByIndex of hoNode i to hoChild
+                If (sLine <> "") ;
+                    Send _SerializeNode hoChild (iIndent + 2) True "" (&asLines)
+                Else ;
+                    Send _SerializeNode hoChild iIndent True "" (&asLines)
+            Loop
+        End
+        Else Begin
+            // Scalar
+            If (iType = jsonTypeNull) Begin
+                Move "~" to sVal
+            End
+            Else Begin
+                Get JsonValue of hoNode to sVal
+            End
+
+            // Format value based on type
+            If (iType = jsonTypeBoolean) Begin
+                // Normalize to lowercase
+                If (sVal = "1" or sVal = "True"  or sVal = "TRUE")  ;
+                    Move "true"  to sVal
+                If (sVal = "0" or sVal = "False" or sVal = "FALSE") ;
+                    Move "false" to sVal
+            End
+            Else If (iType = jsonTypeString) Begin
+                If (_NeedsQuoting(Self, sVal)) ;
+                    Move ('"' + sVal + '"') to sVal
+            End
+
+            If (bArrayItem) Begin
+                If (sKey <> "") ;
+                    Move (sPad + "- " + sKey + ": " + sVal) to sLine
+                Else ;
+                    Move (sPad + "- " + sVal) to sLine
+            End
+            Else Begin
+                If (sKey <> "") ;
+                    Move (sPad + sKey + ": " + sVal) to sLine
+                Else ;
+                    Move (sPad + sVal) to sLine
+            End
+            Move sLine to asLines[SizeOfArray(asLines)]
+        End
+    End_Procedure
+
+    // Serialize this cJsonObject tree to a YAML string.
+    Function StringifyYaml Returns String
+        String[] asLines
+        String sResult sLf
+        Integer i iCount
+
+        Move (Character(10)) to sLf
+        Send _SerializeNode Self 0 False "" (&asLines)
+
+        Move (SizeOfArray(asLines)) to iCount
+        Move "" to sResult
+        For i from 0 to (iCount - 1)
+            If (i = 0) ;
+                Move asLines[i] to sResult
+            Else ;
+                Move (sResult + sLf + asLines[i]) to sResult
+        Loop
+        Function_Return sResult
+    End_Function
+
+End_Class

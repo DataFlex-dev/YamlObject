@@ -1,0 +1,415 @@
+﻿Use DFUnit.pkg
+Use cYamlObject.pkg
+
+Struct tTutorialItem
+    String id
+    String name
+    String type
+    Integer born
+End_Struct
+
+Struct tCompanyInfo
+    String company
+    String[] domain
+    tTutorialItem[] tutorial
+    String author
+    Boolean published
+End_Struct
+
+Object oBasicParsing is a cTestFixture
+
+    Property Handle phYaml 0
+
+    Procedure Setup
+        Handle hoYaml
+        Get Create (RefClass(cYamlObject)) to hoYaml
+        Set phYaml to hoYaml
+    End_Procedure
+
+    Procedure TearDown
+        Handle hoYaml
+        Get phYaml to hoYaml
+        If (hoYaml > 0) Send Destroy of hoYaml
+        Set phYaml to 0
+    End_Procedure
+
+    { Visibility=Private }
+    Function Yaml Returns Handle
+        Function_Return (phYaml(Self))
+    End_Function
+
+    { Published=True }
+    Procedure ParseFlatObject
+        Handle hoYaml
+        Boolean bOk
+        String sYaml
+        Move """
+            name: Alice
+            age: 30
+            active: true
+            """ to sYaml
+        Get Yaml to hoYaml
+        Get ParseYaml of hoYaml sYaml to bOk
+        Send Assert bOk "ParseYaml should succeed"
+        Send Assert (IsOfJsonType(hoYaml, jsonTypeObject)) "Root should be an object"
+        Send AssertIAreEqual 3 (MemberCount(hoYaml)) "Should have 3 members"
+        Send AssertSAreEqual "Alice" (MemberValue(hoYaml, "name")) "name should be Alice"
+        Send AssertSAreEqual "30"    (MemberValue(hoYaml, "age"))  "age should be 30"
+        Send Assert (MemberValue(hoYaml, "active")) "active should be true"
+    End_Procedure
+
+    { Published=True }
+    Procedure TypeInference
+        Handle hoYaml
+        Boolean bOk
+        String sYaml
+        Move """
+            s: hello
+            i: 42
+            f: 3.14
+            b: false
+            n: ~
+            """ to sYaml
+        Get Yaml to hoYaml
+        Get ParseYaml of hoYaml sYaml to bOk
+        Send Assert bOk "ParseYaml should succeed"
+        Send AssertIAreEqual jsonTypeString  (MemberJsonType(hoYaml, "s")) "s should be string"
+        Send AssertIAreEqual jsonTypeInteger (MemberJsonType(hoYaml, "i")) "i should be integer"
+        Send AssertIAreEqual jsonTypeDouble  (MemberJsonType(hoYaml, "f")) "f should be double"
+        Send AssertIAreEqual jsonTypeBoolean (MemberJsonType(hoYaml, "b")) "b should be boolean"
+        Send AssertIAreEqual jsonTypeNull    (MemberJsonType(hoYaml, "n")) "n should be null"
+    End_Procedure
+
+    { Published=True }
+    Procedure QuotedStringStaysString
+        Handle hoYaml
+        Boolean bOk
+        String sYaml
+        Move """
+            value: "123"
+            other: xx
+            """ to sYaml
+        Get Yaml to hoYaml
+        Get ParseYaml of hoYaml sYaml to bOk
+        Send Assert bOk "ParseYaml should succeed"
+        Send AssertIAreEqual jsonTypeString (MemberJsonType(hoYaml, "value")) "Quoted number should remain a string"
+        Send AssertSAreEqual "123" (MemberValue(hoYaml, "value")) "value should be 123"
+    End_Procedure
+
+    { Published=True }
+    Procedure ParseNestedObject
+        Handle hoYaml hoPerson
+        Boolean bOk
+        String sYaml
+        Move """
+            person:
+              name: Bob
+              city: London
+            """ to sYaml
+        Get Yaml to hoYaml
+        Get ParseYaml of hoYaml sYaml to bOk
+        Send Assert bOk "ParseYaml should succeed"
+        Send Assert (HasMember(hoYaml, "person")) "Should have person member"
+        Send AssertIAreEqual jsonTypeObject (MemberJsonType(hoYaml, "person")) "person should be an object"
+        Get Member of hoYaml "person" to hoPerson
+        Send AssertSAreEqual "Bob"    (MemberValue(hoPerson, "name")) "name should be Bob"
+        Send AssertSAreEqual "London" (MemberValue(hoPerson, "city")) "city should be London"
+    End_Procedure
+
+    { Published=True }
+    Procedure ParseScalarArray
+        Handle hoYaml hoItem
+        Boolean bOk
+        String sYaml
+        Move """
+            - apple
+            - banana
+            - cherry
+            """ to sYaml
+        Get Yaml to hoYaml
+        Get ParseYaml of hoYaml sYaml to bOk
+        Send Assert bOk "ParseYaml should succeed"
+        Send Assert (IsOfJsonType(hoYaml, jsonTypeArray)) "Root should be an array"
+        Send AssertIAreEqual 3 (MemberCount(hoYaml)) "Should have 3 items"
+        Get MemberByIndex of hoYaml 0 to hoItem
+        Send AssertSAreEqual "apple"  (JsonValue(hoItem)) "Item 0 should be apple"
+        Get MemberByIndex of hoYaml 1 to hoItem
+        Send AssertSAreEqual "banana" (JsonValue(hoItem)) "Item 1 should be banana"
+        Get MemberByIndex of hoYaml 2 to hoItem
+        Send AssertSAreEqual "cherry" (JsonValue(hoItem)) "Item 2 should be cherry"
+    End_Procedure
+
+    { Published=True }
+    Procedure ParseArrayOfObjects
+        Handle hoYaml hoItem
+        Boolean bOk
+        String sYaml
+        Move """
+            - name: Alice
+              age: 30
+            - name: Bob
+              age: 25
+            """ to sYaml
+        Get Yaml to hoYaml
+        Get ParseYaml of hoYaml sYaml to bOk
+        Send Assert bOk "ParseYaml should succeed"
+        Send Assert (IsOfJsonType(hoYaml, jsonTypeArray)) "Root should be an array"
+        Send AssertIAreEqual 2 (MemberCount(hoYaml)) "Should have 2 items"
+        Get MemberByIndex of hoYaml 0 to hoItem
+        Send AssertSAreEqual "Alice" (MemberValue(hoItem, "name")) "Item 0 name should be Alice"
+        Send AssertSAreEqual "30"    (MemberValue(hoItem, "age"))  "Item 0 age should be 30"
+        Get MemberByIndex of hoYaml 1 to hoItem
+        Send AssertSAreEqual "Bob" (MemberValue(hoItem, "name")) "Item 1 name should be Bob"
+        Send AssertSAreEqual "25"  (MemberValue(hoItem, "age"))  "Item 1 age should be 25"
+    End_Procedure
+
+    { Published=True }
+    Procedure ParseInlineCommentIsStripped
+        Handle hoYaml
+        Boolean bOk
+        String sYaml
+        Move """
+            host: localhost # default
+            port: 5432 # postgres
+            """ to sYaml
+        Get Yaml to hoYaml
+        Get ParseYaml of hoYaml sYaml to bOk
+        Send Assert bOk "ParseYaml should succeed"
+        Send AssertSAreEqual "localhost" (MemberValue(hoYaml, "host")) "Comment should be stripped from host"
+        Send AssertSAreEqual "5432"      (MemberValue(hoYaml, "port")) "Comment should be stripped from port"
+        Send AssertIAreEqual jsonTypeInteger (MemberJsonType(hoYaml, "port")) "port should be inferred as integer"
+    End_Procedure
+
+    { Published=True }
+    Procedure ParseEmptyDocumentReturnsObject
+        Handle hoYaml
+        Boolean bOk
+        Get Yaml to hoYaml
+        Get ParseYaml of hoYaml "" to bOk
+        Send Assert bOk "ParseYaml should succeed on empty input"
+        Send Assert (IsOfJsonType(hoYaml, jsonTypeObject)) "Empty YAML should yield an empty object"
+        Send AssertIAreEqual 0 (MemberCount(hoYaml)) "Empty object should have 0 members"
+    End_Procedure
+
+    { Published=True }
+    Procedure ParseComplexYamlToStruct
+        Handle hoYaml
+        Boolean bOk
+        String sYaml
+        tCompanyInfo oData
+        Move """
+            # A sample yaml file
+            company: spacelift
+            domain:
+             - devops
+             - devsecops
+            tutorial:
+             - id: yaml
+               name: "YAML Ain't Markup Language"
+               type: awesome
+               born: 2001
+             - id: json
+               name: JavaScript Object Notation
+               type: great
+               born: 2001
+             - id: xml
+               name: Extensible Markup Language
+               type: good
+               born: 1996
+            author: omkarbirade
+            published: true
+            """ to sYaml
+        Get Yaml to hoYaml
+        Get ParseYaml of hoYaml sYaml to bOk
+        Send Assert bOk "ParseYaml should succeed"
+        Get JsonToDataType of hoYaml to oData
+        Send AssertSAreEqual "spacelift"  oData.company   "company should be spacelift"
+        Send AssertSAreEqual "devops"     oData.domain[0] "domain[0] should be devops"
+        Send AssertSAreEqual "devsecops"  oData.domain[1] "domain[1] should be devsecops"
+        Send AssertSAreEqual "yaml"       oData.tutorial[0].id   "tutorial[0].id should be yaml"
+        Send AssertSAreEqual "YAML Ain't Markup Language" oData.tutorial[0].name "tutorial[0].name"
+        Send AssertSAreEqual "awesome"    oData.tutorial[0].type "tutorial[0].type"
+        Send AssertIAreEqual 2001         oData.tutorial[0].born "tutorial[0].born"
+        Send AssertSAreEqual "json"       oData.tutorial[1].id   "tutorial[1].id should be json"
+        Send AssertSAreEqual "JavaScript Object Notation" oData.tutorial[1].name "tutorial[1].name"
+        Send AssertSAreEqual "great"      oData.tutorial[1].type "tutorial[1].type"
+        Send AssertIAreEqual 2001         oData.tutorial[1].born "tutorial[1].born"
+        Send AssertSAreEqual "xml"        oData.tutorial[2].id   "tutorial[2].id should be xml"
+        Send AssertSAreEqual "Extensible Markup Language" oData.tutorial[2].name "tutorial[2].name"
+        Send AssertSAreEqual "good"       oData.tutorial[2].type "tutorial[2].type"
+        Send AssertIAreEqual 1996         oData.tutorial[2].born "tutorial[2].born"
+        Send AssertSAreEqual "omkarbirade" oData.author "author should be omkarbirade"
+        Send Assert oData.published "published should be true"
+    End_Procedure
+
+    // ── StringifyYaml tests ───────────────────────────────────────────────────
+
+    // Helper: parse sYaml into a fresh cYamlObject, stringify it, parse the
+    // result into a second fresh cYamlObject, and return that handle.
+    // The caller is responsible for destroying the returned object.
+    { Visibility=Private }
+    Function _RoundTrip String sYaml Returns Handle
+        Handle hoA hoB
+        Boolean bOk
+        String sStringified
+        Get Create (RefClass(cYamlObject)) to hoA
+        Get ParseYaml of hoA sYaml to bOk
+        Get StringifyYaml of hoA to sStringified
+        Send Destroy of hoA
+        Get Create (RefClass(cYamlObject)) to hoB
+        Get ParseYaml of hoB sStringified to bOk
+        Function_Return hoB
+    End_Function
+
+    { Published=True }
+    Procedure StringifyFlatObject
+        Handle hoRT
+        String sYaml
+        Move """
+            name: Alice
+            age: 30
+            active: true
+            """ to sYaml
+        Get _RoundTrip sYaml to hoRT
+        Send Assert (IsOfJsonType(hoRT, jsonTypeObject)) "Round-tripped root should be an object"
+        Send AssertIAreEqual 3 (MemberCount(hoRT)) "Should still have 3 members"
+        Send AssertSAreEqual "Alice" (MemberValue(hoRT, "name"))   "name should survive round-trip"
+        Send AssertSAreEqual "30"    (MemberValue(hoRT, "age"))    "age should survive round-trip"
+        Send Assert  (MemberValue(hoRT, "active")) "active should survive round-trip"
+        Send Destroy of hoRT
+    End_Procedure
+
+    { Published=True }
+    Procedure StringifyScalarArray
+        Handle hoRT hoItem
+        String sYaml
+        Move """
+            - apple
+            - banana
+            - cherry
+            """ to sYaml
+        Get _RoundTrip sYaml to hoRT
+        Send Assert (IsOfJsonType(hoRT, jsonTypeArray)) "Round-tripped root should be an array"
+        Send AssertIAreEqual 3 (MemberCount(hoRT)) "Should still have 3 items"
+        Get MemberByIndex of hoRT 0 to hoItem
+        Send AssertSAreEqual "apple"  (JsonValue(hoItem)) "Item 0 should survive round-trip"
+        Get MemberByIndex of hoRT 1 to hoItem
+        Send AssertSAreEqual "banana" (JsonValue(hoItem)) "Item 1 should survive round-trip"
+        Get MemberByIndex of hoRT 2 to hoItem
+        Send AssertSAreEqual "cherry" (JsonValue(hoItem)) "Item 2 should survive round-trip"
+        Send Destroy of hoRT
+    End_Procedure
+
+    { Published=True }
+    Procedure StringifyNestedObject
+        Handle hoRT hoPerson
+        String sYaml
+        Move """
+            person:
+              name: Bob
+              city: London
+            """ to sYaml
+        Get _RoundTrip sYaml to hoRT
+        Send Assert (HasMember(hoRT, "person")) "person member should survive round-trip"
+        Get Member of hoRT "person" to hoPerson
+        Send AssertSAreEqual "Bob"    (MemberValue(hoPerson, "name")) "name should survive round-trip"
+        Send AssertSAreEqual "London" (MemberValue(hoPerson, "city")) "city should survive round-trip"
+        Send Destroy of hoRT
+    End_Procedure
+
+    { Published=True }
+    Procedure StringifyArrayOfObjects
+        Handle hoRT hoItem
+        String sYaml
+        Move """
+            - name: Alice
+              age: 30
+            - name: Bob
+              age: 25
+            """ to sYaml
+        Get _RoundTrip sYaml to hoRT
+        Send Assert (IsOfJsonType(hoRT, jsonTypeArray)) "Round-tripped root should be an array"
+        Send AssertIAreEqual 2 (MemberCount(hoRT)) "Should still have 2 items"
+        Get MemberByIndex of hoRT 0 to hoItem
+        Send AssertSAreEqual "Alice" (MemberValue(hoItem, "name")) "Item 0 name should survive round-trip"
+        Send AssertSAreEqual "30"    (MemberValue(hoItem, "age"))  "Item 0 age should survive round-trip"
+        Get MemberByIndex of hoRT 1 to hoItem
+        Send AssertSAreEqual "Bob" (MemberValue(hoItem, "name")) "Item 1 name should survive round-trip"
+        Send AssertSAreEqual "25"  (MemberValue(hoItem, "age"))  "Item 1 age should survive round-trip"
+        Send Destroy of hoRT
+    End_Procedure
+
+    { Published=True }
+    Procedure StringifyNullAndBooleans
+        Handle hoRT
+        String sYaml
+        Move """
+            flag: true
+            disabled: false
+            nothing: ~
+            """ to sYaml
+        Get _RoundTrip sYaml to hoRT
+        Send Assert  (MemberValue(hoRT, "flag"))     "true should survive round-trip"
+        Send AssertFalse (MemberValue(hoRT, "disabled")) "false should survive round-trip"
+        Send AssertIAreEqual jsonTypeNull (MemberJsonType(hoRT, "nothing")) "null should survive round-trip"
+        Send Destroy of hoRT
+    End_Procedure
+
+    { Published=True }
+    Procedure StringifyQuotesStringsThatNeedIt
+        Handle hoYaml
+        Boolean bOk
+        String sYaml sOut
+        Move """
+            version: "1.0"
+            empty: ""
+            
+            """ to sYaml
+        Get Yaml to hoYaml
+        Get ParseYaml of hoYaml sYaml to bOk
+        Get StringifyYaml of hoYaml to sOut
+        // "1.0" would be read as a double without quotes; verify quotes are present
+        Send Assert (Pos('"1.0"', sOut) > 0) "Numeric-looking string should be quoted in output"
+        // empty string must be quoted
+        Send Assert (Pos('""', sOut) > 0) "Empty string should be quoted in output"
+    End_Procedure
+
+    { Published=True }
+    Procedure StringifyComplexRoundTrip
+        Handle hoRT hoItem
+        String sYaml
+        tCompanyInfo oData
+        Move """
+            company: spacelift
+            domain:
+             - devops
+             - devsecops
+            tutorial:
+             - id: yaml
+               name: "YAML Ain't Markup Language"
+               type: awesome
+               born: 2001
+             - id: json
+               name: JavaScript Object Notation
+               type: great
+               born: 2001
+             - id: xml
+               name: Extensible Markup Language
+               type: good
+               born: 1996
+            author: omkarbirade
+            published: true
+            """ to sYaml
+        Get _RoundTrip sYaml to hoRT
+        Send AssertSAreEqual "spacelift"  (MemberValue(hoRT, "company")) "company should survive round-trip"
+        Send AssertSAreEqual "omkarbirade" (MemberValue(hoRT, "author")) "author should survive round-trip"
+        // domain array
+        Get Member of hoRT "domain" to hoItem
+        Send AssertIAreEqual 2 (MemberCount(hoItem)) "domain should still have 2 entries"
+        // tutorial array
+        Get Member of hoRT "tutorial" to hoItem
+        Send AssertIAreEqual 3 (MemberCount(hoItem)) "tutorial should still have 3 entries"
+        Send Destroy of hoRT
+    End_Procedure
+
+End_Object

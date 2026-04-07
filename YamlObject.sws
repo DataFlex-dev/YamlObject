@@ -1,0 +1,9 @@
+{
+    "dependencies": [
+        "DataFlex-dev/DFUnit#1.0.1"
+    ],
+    "df": 99.0,
+    "projects": [
+        "UnitTests.src"
+    ]
+}

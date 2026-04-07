@@ -1,0 +1,8 @@
+﻿Use DFUnit.pkg
+
+Object oApplication is a cApplication
+End_Object
+
+Object oTestApplication is a cDFUnitTestApplication
+    Use BasicParsing.pkg
+End_Object
