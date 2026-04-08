@@ -1,15 +1,7 @@
-Use UI
+﻿Use UI
 Use cJsonObject.pkg
 
 Class cYamlObject is a cJsonObject
-
-    Procedure Construct_Object
-        Forward Send Construct_Object
-    End_Procedure
-
-    Procedure End_Construct_Object
-        Forward Send End_Construct_Object
-    End_Procedure
 
     // Return the number of leading spaces in sLine
     { Visibility=Private }
@@ -64,7 +56,7 @@ Class cYamlObject is a cJsonObject
         For i from 1 to iLen
             Move (Mid(sVal, 1, i)) to sCh
             If (i = 1 and (sCh = "-" or sCh = "+")) Begin
-                // optional sign — ok, but must not be the only character
+                // optional sign ΓÇö ok, but must not be the only character
                 If (iLen = 1) ;
                     Function_Return False
             End
@@ -589,19 +581,17 @@ Class cYamlObject is a cJsonObject
     Function StringifyYaml Returns String
         String[] asLines
         String sResult sLf
-        Integer i iCount
-
+        Integer iOrigDecSep
+        
+        Get_Attribute DF_DECIMAL_SEPARATOR to iOrigDecSep
+        Set_Attribute DF_DECIMAL_SEPARATOR to (Ascii("."))
+        
         Move (Character(10)) to sLf
         Send _SerializeNode Self 0 False "" (&asLines)
-
-        Move (SizeOfArray(asLines)) to iCount
-        Move "" to sResult
-        For i from 0 to (iCount - 1)
-            If (i = 0) ;
-                Move asLines[i] to sResult
-            Else ;
-                Move (sResult + sLf + asLines[i]) to sResult
-        Loop
+        Move (StrJoinFromArray(asLines, sLf)) to sResult
+        
+        Set_Attribute DF_DECIMAL_SEPARATOR to iOrigDecSep
+        
         Function_Return sResult
     End_Function
 

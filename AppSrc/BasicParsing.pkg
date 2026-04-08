@@ -114,6 +114,7 @@ Object oBasicParsing is a cTestFixture
         Get Member of hoYaml "person" to hoPerson
         Send AssertSAreEqual "Bob"    (MemberValue(hoPerson, "name")) "name should be Bob"
         Send AssertSAreEqual "London" (MemberValue(hoPerson, "city")) "city should be London"
+        Send Destroy of hoPerson
     End_Procedure
 
     { Published=True }
@@ -133,10 +134,13 @@ Object oBasicParsing is a cTestFixture
         Send AssertIAreEqual 3 (MemberCount(hoYaml)) "Should have 3 items"
         Get MemberByIndex of hoYaml 0 to hoItem
         Send AssertSAreEqual "apple"  (JsonValue(hoItem)) "Item 0 should be apple"
+        Send Destroy of hoItem
         Get MemberByIndex of hoYaml 1 to hoItem
         Send AssertSAreEqual "banana" (JsonValue(hoItem)) "Item 1 should be banana"
+        Send Destroy of hoItem
         Get MemberByIndex of hoYaml 2 to hoItem
         Send AssertSAreEqual "cherry" (JsonValue(hoItem)) "Item 2 should be cherry"
+        Send Destroy of hoItem
     End_Procedure
 
     { Published=True }
@@ -158,9 +162,13 @@ Object oBasicParsing is a cTestFixture
         Get MemberByIndex of hoYaml 0 to hoItem
         Send AssertSAreEqual "Alice" (MemberValue(hoItem, "name")) "Item 0 name should be Alice"
         Send AssertSAreEqual "30"    (MemberValue(hoItem, "age"))  "Item 0 age should be 30"
+        Send Destroy of hoItem
         Get MemberByIndex of hoYaml 1 to hoItem
         Send AssertSAreEqual "Bob" (MemberValue(hoItem, "name")) "Item 1 name should be Bob"
         Send AssertSAreEqual "25"  (MemberValue(hoItem, "age"))  "Item 1 age should be 25"
+        //  Validate that MemberByIndex uses the the front end class
+        Send Assert (IsObjectOfClass(hoItem, (RefClass(cYamlObject))))
+        Send Destroy of hoItem
     End_Procedure
 
     { Published=True }
@@ -293,10 +301,13 @@ Object oBasicParsing is a cTestFixture
         Send AssertIAreEqual 3 (MemberCount(hoRT)) "Should still have 3 items"
         Get MemberByIndex of hoRT 0 to hoItem
         Send AssertSAreEqual "apple"  (JsonValue(hoItem)) "Item 0 should survive round-trip"
+        Send Destroy of hoItem
         Get MemberByIndex of hoRT 1 to hoItem
         Send AssertSAreEqual "banana" (JsonValue(hoItem)) "Item 1 should survive round-trip"
+        Send Destroy of hoItem
         Get MemberByIndex of hoRT 2 to hoItem
         Send AssertSAreEqual "cherry" (JsonValue(hoItem)) "Item 2 should survive round-trip"
+        Send Destroy of hoItem
         Send Destroy of hoRT
     End_Procedure
 
@@ -314,6 +325,7 @@ Object oBasicParsing is a cTestFixture
         Get Member of hoRT "person" to hoPerson
         Send AssertSAreEqual "Bob"    (MemberValue(hoPerson, "name")) "name should survive round-trip"
         Send AssertSAreEqual "London" (MemberValue(hoPerson, "city")) "city should survive round-trip"
+        Send Destroy of hoPerson
         Send Destroy of hoRT
     End_Procedure
 
@@ -333,9 +345,11 @@ Object oBasicParsing is a cTestFixture
         Get MemberByIndex of hoRT 0 to hoItem
         Send AssertSAreEqual "Alice" (MemberValue(hoItem, "name")) "Item 0 name should survive round-trip"
         Send AssertSAreEqual "30"    (MemberValue(hoItem, "age"))  "Item 0 age should survive round-trip"
+        Send Destroy of hoItem
         Get MemberByIndex of hoRT 1 to hoItem
         Send AssertSAreEqual "Bob" (MemberValue(hoItem, "name")) "Item 1 name should survive round-trip"
         Send AssertSAreEqual "25"  (MemberValue(hoItem, "age"))  "Item 1 age should survive round-trip"
+        Send Destroy of hoItem
         Send Destroy of hoRT
     End_Procedure
 
@@ -406,9 +420,11 @@ Object oBasicParsing is a cTestFixture
         // domain array
         Get Member of hoRT "domain" to hoItem
         Send AssertIAreEqual 2 (MemberCount(hoItem)) "domain should still have 2 entries"
+        Send Destroy of hoItem
         // tutorial array
         Get Member of hoRT "tutorial" to hoItem
         Send AssertIAreEqual 3 (MemberCount(hoItem)) "tutorial should still have 3 entries"
+        Send Destroy of hoItem
         Send Destroy of hoRT
     End_Procedure
 
