@@ -1,0 +1,11 @@
+{
+    "description": "YAML parser built on top of cJsonObject.",
+    "df": 26.0,
+    "package": {
+        "df-max": 26.0,
+        "df-min": 26.0,
+        "version": "0.1.0",
+        "license": "MIT"
+    },
+    "workspaceName": "YamlObject"
+}

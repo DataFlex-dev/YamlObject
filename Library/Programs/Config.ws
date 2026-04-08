@@ -1,0 +1,12 @@
+[Workspace]
+Home=..\
+AppHTMLPath=.
+AppSrcPath=AppSrc
+DataPath=Data
+DDSrcPath=DDSrc
+BitmapPath=.
+IdeSrcPath=IdeSrc
+HelpPath=.
+ProgramPath=Programs
+FileList=Data\Filelist.cfg
+Description=YAML parser built on top of cJsonObject.

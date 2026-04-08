@@ -1,0 +1,10 @@
+**/config/classlist.xml
+**.dep
+**.prn
+**.manifest
+**.dbg
+**.exe
+**.log
+**/IdeSrc/*
+**/LoginEncryptionKey.inc
+**/DfPkg

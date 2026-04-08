@@ -2,7 +2,7 @@
     "dependencies": [
         "DataFlex-dev/DFUnit#1.0.1"
     ],
-    "df": 99.0,
+    "df": 26.0,
     "projects": [
         "UnitTests.src"
     ]

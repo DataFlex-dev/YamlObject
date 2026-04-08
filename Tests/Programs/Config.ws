@@ -1,12 +1,12 @@
 [Workspace]
 Home=..\
-AppHTMLPath=AppHtml
+AppHTMLPath=.
 AppSrcPath=AppSrc
 DataPath=Data
 DDSrcPath=DDSrc
-BitmapPath=Bitmaps
+BitmapPath=.
 IdeSrcPath=IdeSrc
-HelpPath=Help
+HelpPath=.
 ProgramPath=Programs
 FileList=Data\Filelist.cfg
-Description=YamlObject
+Description=YamlObjectTests.dev

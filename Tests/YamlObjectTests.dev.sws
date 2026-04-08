@@ -1,0 +1,10 @@
+{
+    "dependencies": [
+        "DataFlex-dev/DFUnit#1.0.1",
+        "../Library/YamlObject.sws"
+    ],
+    "df": 26.0,
+    "projects": [
+        "UnitTests.src"
+    ]
+}

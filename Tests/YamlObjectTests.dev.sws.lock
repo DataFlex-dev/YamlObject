@@ -2,7 +2,8 @@
     "dependencies": {
         "DataFlex-dev/DFUnit": {
             "ref": "1.0.1"
-        }
+        },
+        "local/YamlObject": {}
     },
     "lockVersion": "1.0.0"
 }
