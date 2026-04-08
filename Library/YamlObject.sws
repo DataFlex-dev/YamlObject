@@ -4,8 +4,8 @@
     "package": {
         "df-max": 26.0,
         "df-min": 26.0,
-        "version": "0.1.0",
-        "license": "MIT"
+        "license": "BSD-3-Clause",
+        "version": "0.1.0"
     },
     "workspaceName": "YamlObject"
 }
